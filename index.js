@@ -29,11 +29,10 @@ const loginSchema = joi.object({
 })
 
 const movimentacaoSchema = joi.object({
-    usuario: joi.string().required(),
-    email: joi.string().required(),
     titulo: joi.string().required(),
     valor: joi.number().required(),
-    tipo: joi.string().valid("entrada", "saida").required()
+    tipo: joi.string().valid("entrada", "saida").required(),
+    usuarioId: joi.string().required()
 })
 
 app.post("/cadastro",async (req, res) => {
@@ -65,7 +64,11 @@ app.post("/cadastro",async (req, res) => {
         mongoClient.close();
     }
     catch(e){
+        res.status(500).send(e);
 
+        console.log(e)
+
+        mongoClient.close();
     }
 
     res.status(200).send("tudo certo")
@@ -104,23 +107,94 @@ app.post("/sign-in",async (req, res) => {
                 token: token
             });
 
+            mongoClient.close();
+
             res.status(200).send(token);
         }
         else{
-            console.log("Email ou senha errados");
             res.status(422).send("Erro nos dados enviados");
+            mongoClient.close();
         }
     }
     catch(e){
+        res.status(500).send(e);
 
+        console.log(e)
+
+        mongoClient.close();
     }
 })
 
-app.post("/movimentacoes", (req, res) => {
+app.post("/movimentacoes", async(req, res) => {
+    
+    const {authorization } = req.headers;
+    const token = authorization.replace('Bearer ', '');
 
+    if(!token) {
+        mongoClient.close();
+        return res.sendStatus(401);
+    }
+    console.log(token);
+
+    try{
+        console.log(chalk.yellow("Acessando banco de dados..."));
+        await mongoClient.connect();
+        const dados = mongoClient.db("projeto-13");
+
+        const sessao = await dados.collection('sessao').findOne({token: token});
+
+        if (!sessao) {
+            return res.sendStatus(401);
+
+            mongoClient.close();
+        }
+
+        const usuario = await dados.collection("usuarios").findOne({_id: sessao.userId});
+
+        console.log(usuario)
+
+        if(!usuario){
+            return res.sendStatus(401);
+
+            mongoClient.close();
+        }
+        else{
+            delete usuario.senha;
+
+            const movimentacao = {
+                ...req.body,
+                usuarioId: usuario._id.toString()
+            }
+
+            console.log(movimentacao);
+
+            const validacao = movimentacaoSchema.validate(movimentacao, { abortEarly: false });
+
+            if(validacao.error){
+                console.log(validacao.error.details);
+        
+                res.status(422).send("Erro nos dados enviados");
+
+                mongoClient.close();
+        
+                return;
+            }
+
+            await dados.collection('movimentacoes').insertOne(movimentacao);
+        }
+
+        res.sendStatus(200);
+    }
+    catch(e){
+        res.status(500).send(e);
+
+        console.log(e)
+
+        mongoClient.close();
+    }
 })
 
-app.get("/movimentacoes", (req, res) => {
+app.get("/movimentacoes", async(req, res) => {
 
 })
 
