@@ -131,7 +131,6 @@ app.post("/movimentacoes", async(req, res) => {
     const token = authorization.replace('Bearer ', '');
 
     if(!token) {
-        mongoClient.close();
         return res.sendStatus(401);
     }
     console.log(token);
@@ -181,9 +180,10 @@ app.post("/movimentacoes", async(req, res) => {
             }
 
             await dados.collection('movimentacoes').insertOne(movimentacao);
+
+            res.status(201).send("enviado");
         }
 
-        res.sendStatus(200);
     }
     catch(e){
         res.status(500).send(e);
@@ -195,7 +195,53 @@ app.post("/movimentacoes", async(req, res) => {
 })
 
 app.get("/movimentacoes", async(req, res) => {
+    const {authorization } = req.headers;
+    const token = authorization.replace('Bearer ', '');
 
+    if(!token) {
+        return res.sendStatus(401);
+    }
+    console.log(token);
+
+    try{
+        console.log(chalk.yellow("Acessando banco de dados..."));
+        await mongoClient.connect();
+        const dados = mongoClient.db("projeto-13");
+
+        const sessao = await dados.collection('sessao').findOne({token: token});
+
+        if (!sessao) {
+            return res.sendStatus(401);
+
+            mongoClient.close();
+        }
+
+        const usuario = await dados.collection("usuarios").findOne({_id: sessao.userId});
+
+        console.log(usuario)
+
+        if(!usuario){
+            return res.sendStatus(401);
+
+            mongoClient.close();
+        }
+        else{
+            console.log(usuario._id.toString());
+
+            const movimentacoes = await dados.collection('movimentacoes').find({usuarioId: usuario._id.toString()}).toArray();
+
+            mongoClient.close();
+
+            res.status(200).send(movimentacoes);
+        }
+    }
+    catch(e){
+        res.status(500).send(e);
+
+        console.log(e)
+
+        mongoClient.close();
+    }
 })
 
 app.listen(porta, () => {
