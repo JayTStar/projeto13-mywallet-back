@@ -5,7 +5,7 @@ dotenv.config();
 
 let dados = null;
 try {
-  const mongoClient = new MongoClient(process.env.MONGO_URL);
+  const mongoClient = new MongoClient(process.env.MONGO_URI);
   await mongoClient.connect();
   dados = mongoClient.db(process.env.BANCO);
   console.log("Conexão com o banco dados MongoDB estabelecida!");
